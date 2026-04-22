@@ -173,10 +173,17 @@ class StreamDeckManager {
     }
 
     try {
+      // Clear the panel first (blank all keys)
+      if (typeof entry.deck.clearPanel === 'function') {
+        await entry.deck.clearPanel()
+        console.log(`[StreamDeck] Cleared panel on ${deckId}`)
+      }
+
+      // Close the device connection
       await entry.deck.close()
       console.log(`[StreamDeck] Closed device ${deckId}`)
     } catch (error) {
-      console.error(`[StreamDeck] Failed to close device ${deckId}:`, error.message)
+      console.error(`[StreamDeck] Failed to disconnect device ${deckId}:`, error.message)
     }
 
     this.openedDecks.delete(deckId)
