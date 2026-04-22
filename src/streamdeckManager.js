@@ -173,15 +173,27 @@ class StreamDeckManager {
     }
 
     try {
-      // Clear the panel first (blank all keys)
-      if (typeof entry.deck.clearPanel === 'function') {
-        await entry.deck.clearPanel()
-        console.log(`[StreamDeck] Cleared panel on ${deckId}`)
+      const { deck, device } = entry
+
+      // Reset all keys to black explicitly (full factory reset)
+      const keyCount = Number(device.keyCount || 0)
+      if (keyCount > 0 && typeof deck.fillKeyColor === 'function') {
+        console.log(`[StreamDeck] Resetting ${keyCount} keys on ${deckId}...`)
+        for (let i = 0; i < keyCount; i++) {
+          try {
+            await deck.fillKeyColor(i, 0, 0, 0)
+          } catch (e) {
+            // Ignore individual key errors
+          }
+        }
       }
 
+      // Wait a bit for the reset to settle
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
       // Close the device connection
-      await entry.deck.close()
-      console.log(`[StreamDeck] Closed device ${deckId}`)
+      await deck.close()
+      console.log(`[StreamDeck] Closed device ${deckId} (fully reset)`)
     } catch (error) {
       console.error(`[StreamDeck] Failed to disconnect device ${deckId}:`, error.message)
     }
