@@ -173,30 +173,17 @@ class StreamDeckManager {
     }
 
     try {
-      const { deck, device } = entry
+      const { deck } = entry
 
-      // Get LCD control info if available
-      const lcdControl = this.getFirstLcdButtonControl(deck)
-
-      // Reset all keys to blank (works for both LCD and traditional buttons)
-      const keyCount = Number(device.keyCount || 0)
-      if (keyCount > 0) {
-        console.log(`[StreamDeck] Resetting ${keyCount} keys on ${deckId}...`)
-        for (let i = 0; i < keyCount; i++) {
-          try {
-            await this.clearKey(deck, lcdControl, i)
-          } catch (e) {
-            // Ignore individual key errors
-          }
-        }
+      // Show startup logo (releases the display back to firmware)
+      if (typeof deck.resetToLogo === 'function') {
+        await deck.resetToLogo()
+        console.log(`[StreamDeck] Reset to logo on ${deckId}`)
       }
 
-      // Wait a bit for the reset to settle
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      // Close the device connection
+      // Close the USB handle so other apps (Companion etc.) can claim it
       await deck.close()
-      console.log(`[StreamDeck] Closed device ${deckId} (fully reset)`)
+      console.log(`[StreamDeck] Closed device ${deckId}`)
     } catch (error) {
       console.error(`[StreamDeck] Failed to disconnect device ${deckId}:`, error.message)
     }
