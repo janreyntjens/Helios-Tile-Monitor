@@ -1,0 +1,15 @@
+{
+  "name": "helios-monitor",
+  "version": "1.0.0",
+  "description": "Helios monitor met scanner, drag-and-drop mapping en 4-rijen controle",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "smoke": "node -e \"require('./src/heliosClient'); require('./src/store'); require('./src/streamdeckManager'); console.log('smoke ok')\""
+  },
+  "dependencies": {
+    "@elgato-stream-deck/node": "^7.0.0",
+    "express": "^4.21.2"
+  }
+}

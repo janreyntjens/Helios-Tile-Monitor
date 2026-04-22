@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset_name: helios-monitor-windows-${{ github.ref_name }}.zip
+            archive_command: powershell -Command "Compress-Archive -Path package.json,package-lock.json,README.md,start-helios-monitor.bat,start-helios-monitor.command,public,src,api_docs,.github -DestinationPath $env:RUNNER_TEMP\\helios-monitor-windows-${{ github.ref_name }}.zip"
+          - os: macos-latest
+            asset_name: helios-monitor-macos-${{ github.ref_name }}.zip
+            archive_command: zip -r "$RUNNER_TEMP/helios-monitor-macos-${{ github.ref_name }}.zip" package.json package-lock.json README.md start-helios-monitor.bat start-helios-monitor.command public src api_docs .github
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Smoke check
+        run: npm run smoke
+
+      - name: Create archive
+        run: ${{ matrix.archive_command }}
+
+      - name: Publish release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/${{ matrix.asset_name }}

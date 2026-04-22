@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helios Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="appShell" class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h1>HELIOS MONITOR</h1>
+        <button id="toggleSidebarBtn" class="small" type="button" title="Collapse sidebar">⇤</button>
+      </div>
+      <div class="sidebar-content">
+        <p class="muted">Drag processors onto row 1 (MAIN) or row 4 (BACKUP). Click a MAIN or BACKUP processor button to make that processor active via Go Main or Go Backup.</p>
+
+        <section class="card">
+          <h2>Scanner</h2>
+          <div class="scan-row">
+            <button id="scanBtn" type="button">Scan Network</button>
+          </div>
+          <div id="scanProgress" class="scan-progress hidden" aria-live="polite">
+            <div class="scan-progress-track">
+              <div id="scanProgressFill" class="scan-progress-fill"></div>
+            </div>
+            <div id="scanProgressText" class="scan-progress-text">Waiting to scan...</div>
+          </div>
+          <h2 class="subhead">Discovered processors</h2>
+          <div id="processorList" class="processor-list"></div>
+        </section>
+
+        <section class="card">
+          <h2>Stream Deck</h2>
+          <div class="scan-row">
+            <button id="scanDecksBtn" type="button">Scan Decks</button>
+          </div>
+          <p class="muted">Drag any board button onto a Stream Deck key to map automatically.</p>
+          <div class="fields compact">
+            <label>Deck
+              <select id="deckSelect"></select>
+            </label>
+          </div>
+          <h2 class="subhead">Deck key map</h2>
+          <div id="deckKeyMap" class="deck-key-map"></div>
+          <h2 class="subhead">Mappings</h2>
+          <div id="deckMappings" class="mappings-list"></div>
+        </section>
+      </div>
+
+    </aside>
+
+    <section class="board-pane">
+      <div class="board-head">
+        <h2 id="boardTitle">Button Matrix</h2>
+        <div class="board-actions">
+          <button id="clearAllBtn" class="small danger" type="button" title="Reset everything">Clear All</button>
+          <button id="removeColumnBtn" class="small" type="button" title="Erase Column">-</button>
+          <button id="addColumnBtn" type="button" title="Add Column">+</button>
+        </div>
+      </div>
+      <p id="statusLine" class="status-line">Ready.</p>
+      <div id="monitorBoard" class="monitor-board"></div>
+    </section>
+  </main>
+
+  <div id="expectedModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <h3 id="expectedModalTitle">Expected tiles</h3>
+      <input id="expectedModalInput" type="number" min="0" step="1" />
+      <div class="modal-actions">
+        <button id="expectedModalCancel" class="small" type="button">Cancel</button>
+        <button id="expectedModalSave" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
