@@ -165,6 +165,27 @@ class StreamDeckManager {
     }
   }
 
+  async disconnectDevice(deckId) {
+    const entry = this.openedDecks.get(deckId)
+    if (!entry) {
+      console.warn(`[StreamDeck] Device ${deckId} not found in openedDecks`)
+      return false
+    }
+
+    try {
+      await entry.deck.close()
+      console.log(`[StreamDeck] Closed device ${deckId}`)
+    } catch (error) {
+      console.error(`[StreamDeck] Failed to close device ${deckId}:`, error.message)
+    }
+
+    this.openedDecks.delete(deckId)
+    this.lastAppliedSignaturesByDeck.delete(deckId)
+    this.lastMappedKeysByDeck.delete(deckId)
+
+    return true
+  }
+
   compareTiles(found, expected) {
     if (expected <= 0) return 'warn'
     if (found === expected) return 'ok'

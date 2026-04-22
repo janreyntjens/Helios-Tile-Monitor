@@ -5,6 +5,7 @@ const dom = {
   scanProgressFill: document.getElementById('scanProgressFill'),
   scanProgressText: document.getElementById('scanProgressText'),
   scanDecksBtn: document.getElementById('scanDecksBtn'),
+  disconnectDeckBtn: document.getElementById('disconnectDeckBtn'),
   deckSelect: document.getElementById('deckSelect'),
   deckKeyMap: document.getElementById('deckKeyMap'),
   deckMappings: document.getElementById('deckMappings'),
@@ -890,6 +891,22 @@ async function scanStreamDecks() {
   await refreshState()
 }
 
+async function disconnectStreamDeck() {
+  const deckId = dom.deckSelect.value
+  if (!deckId) {
+    setStatus('No Stream Deck selected.', true)
+    return
+  }
+
+  await api('/api/streamdecks/disconnect', {
+    method: 'POST',
+    body: JSON.stringify({ deckId })
+  })
+
+  setStatus(`Stream Deck ${deckId} disconnected. Use Scan Decks to reconnect.`)
+  await refreshState()
+}
+
 async function createDeckMapping(deckId, keyIndex, row, col) {
   await api('/api/streamdecks/map', {
     method: 'POST',
@@ -944,6 +961,14 @@ function wireEvents() {
   dom.scanDecksBtn.addEventListener('click', async () => {
     try {
       await scanStreamDecks()
+    } catch (error) {
+      setStatus(error.message, true)
+    }
+  })
+
+  dom.disconnectDeckBtn.addEventListener('click', async () => {
+    try {
+      await disconnectStreamDeck()
     } catch (error) {
       setStatus(error.message, true)
     }

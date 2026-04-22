@@ -519,6 +519,24 @@ app.post('/api/streamdecks/scan', async (_req, res) => {
   }
 })
 
+app.post('/api/streamdecks/disconnect', async (req, res) => {
+  try {
+    const { deckId } = req.body || {}
+    if (!deckId) {
+      return res.status(400).json({ ok: false, error: 'deckId is required' })
+    }
+
+    const disconnected = await streamDeckManager.disconnectDevice(deckId)
+    if (!disconnected) {
+      return res.status(404).json({ ok: false, error: `Device ${deckId} not found` })
+    }
+
+    return res.json({ ok: true, message: `Device ${deckId} disconnected` })
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
 app.post('/api/streamdecks/map', async (req, res) => {
   const { deckId, keyIndex, row, col } = req.body || {}
 
