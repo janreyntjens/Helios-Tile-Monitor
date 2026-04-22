@@ -11,12 +11,17 @@ if errorlevel 1 (
 )
 
 if not exist "node_modules" (
-  echo Dependencies niet gevonden. npm install wordt uitgevoerd...
-  call npm install
+  echo Dependencies niet gevonden. Eerste installatie wordt uitgevoerd...
+  echo Dit kan enkele minuten duren.
+  call npm ci --omit=dev --no-audit --no-fund --loglevel=error
   if errorlevel 1 (
-    echo npm install is mislukt.
-    pause
-    exit /b 1
+    echo npm ci is mislukt. Fallback naar npm install...
+    call npm install --omit=dev --no-audit --no-fund --loglevel=error
+    if errorlevel 1 (
+      echo Dependency installatie is mislukt.
+      pause
+      exit /b 1
+    )
   )
 )
 
