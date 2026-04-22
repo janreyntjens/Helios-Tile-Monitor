@@ -175,13 +175,16 @@ class StreamDeckManager {
     try {
       const { deck, device } = entry
 
-      // Reset all keys to black explicitly (full factory reset)
+      // Get LCD control info if available
+      const lcdControl = this.getFirstLcdButtonControl(deck)
+
+      // Reset all keys to blank (works for both LCD and traditional buttons)
       const keyCount = Number(device.keyCount || 0)
-      if (keyCount > 0 && typeof deck.fillKeyColor === 'function') {
+      if (keyCount > 0) {
         console.log(`[StreamDeck] Resetting ${keyCount} keys on ${deckId}...`)
         for (let i = 0; i < keyCount; i++) {
           try {
-            await deck.fillKeyColor(i, 0, 0, 0)
+            await this.clearKey(deck, lcdControl, i)
           } catch (e) {
             // Ignore individual key errors
           }
@@ -189,7 +192,7 @@ class StreamDeckManager {
       }
 
       // Wait a bit for the reset to settle
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
       // Close the device connection
       await deck.close()
