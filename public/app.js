@@ -4,6 +4,7 @@ const dom = {
   scanProgress: document.getElementById('scanProgress'),
   scanProgressFill: document.getElementById('scanProgressFill'),
   scanProgressText: document.getElementById('scanProgressText'),
+  demoBtn: document.getElementById('demoBtn'),
   scanDecksBtn: document.getElementById('scanDecksBtn'),
   disconnectDeckBtn: document.getElementById('disconnectDeckBtn'),
   deckSelect: document.getElementById('deckSelect'),
@@ -798,6 +799,52 @@ function createBoard() {
   }
 }
 
+function loadDemoData() {
+  const makeProcessor = (id, name, ip, role, status, tiles, expected) => ({
+    id,
+    processorKey: id,
+    description: name,
+    ip,
+    tilesCount: tiles,
+    redundancy: { role, status, state: status, mode: 'auto', info: '', active: status === 'active' }
+  })
+
+  const demoProcessors = [
+    makeProcessor('p1', 'HELIOS-MAIN-01', '192.168.1.101', 'active', 'active', 24, 24),
+    makeProcessor('p2', 'HELIOS-BACKUP-01', '192.168.1.102', 'standby', 'standby', 24, 24),
+    makeProcessor('p3', 'HELIOS-MAIN-02', '192.168.1.103', 'active', 'active', 12, 16),
+    makeProcessor('p4', 'HELIOS-BACKUP-02', '192.168.1.104', 'standby', 'mixed', 12, 16),
+    makeProcessor('p5', 'HELIOS-SOLO', '192.168.1.105', 'active', 'active', 0, 8),
+  ]
+
+  const cols = 3
+  const demoSlots = Array.from({ length: cols }, (_, i) => ({
+    main: i < demoProcessors.length ? { ...demoProcessors[i * 2] } : null,
+    backup: i * 2 + 1 < demoProcessors.length ? { ...demoProcessors[i * 2 + 1] } : null
+  }))
+
+  state = {
+    ...state,
+    processors: demoProcessors,
+    config: {
+      ...state.config,
+      columnCount: cols,
+      expectedTilesBySlot: {
+        'main:0': 24, 'backup:0': 24,
+        'main:1': 16, 'backup:1': 16,
+        'main:2': 8,  'backup:2': 0
+      }
+    },
+    slots: demoSlots
+  }
+
+  updateBoardHeader()
+  createBoard()
+  renderProcessors()
+  paintBoardButtons()
+  setStatus('Demo data geladen — dit zijn nep-processors.')
+}
+
 async function refreshState() {
   const data = await api('/api/state')
   state = {
@@ -956,6 +1003,10 @@ function wireEvents() {
     const nextCollapsed = !dom.appShell.classList.contains('sidebar-collapsed')
     applySidebarMode(nextCollapsed)
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextCollapsed))
+  })
+
+  dom.demoBtn.addEventListener('click', () => {
+    loadDemoData()
   })
 
   dom.scanDecksBtn.addEventListener('click', async () => {
