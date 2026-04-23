@@ -59,6 +59,7 @@
       <div class="board-head">
         <h2 id="boardTitle">Button Matrix</h2>
         <div class="board-actions">
+          <button id="legendBtn" class="small" type="button" title="Show color legend">Legend</button>
           <button id="clearAllBtn" class="small danger" type="button" title="Reset everything">Clear All</button>
           <button id="removeColumnBtn" class="small" type="button" title="Erase Column">-</button>
           <button id="addColumnBtn" type="button" title="Add Column">+</button>
@@ -68,6 +69,22 @@
       <div id="monitorBoard" class="monitor-board"></div>
     </section>
   </main>
+
+  <div id="legendModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card legend-card">
+      <h3>Status colors</h3>
+      <ul class="legend-list">
+        <li><span class="legend-swatch ok"></span><div><strong>Green — ACTIVE</strong><div class="legend-meta">Processor active and tile count matches expected.</div></div></li>
+        <li><span class="legend-swatch warn"></span><div><strong>Orange — STANDBY / ONLINE</strong><div class="legend-meta">Processor reachable, in standby role or tiles above expected.</div></div></li>
+        <li><span class="legend-swatch alert"></span><div><strong>Red — MIXED</strong><div class="legend-meta">Redundancy state mixed/unhealthy. Needs attention.</div></div></li>
+        <li><span class="legend-swatch alert blink"></span><div><strong>Red blinking — TILES MISSING</strong><div class="legend-meta">Active tile count is below expected. Critical.</div></div></li>
+        <li><span class="legend-swatch empty"></span><div><strong>Gray — UNASSIGNED</strong><div class="legend-meta">No processor assigned to this slot.</div></div></li>
+      </ul>
+      <div class="modal-actions">
+        <button id="legendCloseBtn" type="button">Close</button>
+      </div>
+    </div>
+  </div>
 
   <div id="expectedModal" class="modal hidden" aria-hidden="true">
     <div class="modal-card">

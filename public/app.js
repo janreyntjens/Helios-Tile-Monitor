@@ -11,6 +11,9 @@ const dom = {
   deckMappings: document.getElementById('deckMappings'),
   toggleSidebarBtn: document.getElementById('toggleSidebarBtn'),
   clearAllBtn: document.getElementById('clearAllBtn'),
+  legendBtn: document.getElementById('legendBtn'),
+  legendModal: document.getElementById('legendModal'),
+  legendCloseBtn: document.getElementById('legendCloseBtn'),
   removeColumnBtn: document.getElementById('removeColumnBtn'),
   addColumnBtn: document.getElementById('addColumnBtn'),
   boardTitle: document.getElementById('boardTitle'),
@@ -948,6 +951,20 @@ function wireEvents() {
       await clearAll()
     } catch (error) {
       setStatus(error.message, true)
+    }
+  })
+
+  dom.legendBtn.addEventListener('click', () => {
+    dom.legendModal.classList.remove('hidden')
+  })
+
+  dom.legendCloseBtn.addEventListener('click', () => {
+    dom.legendModal.classList.add('hidden')
+  })
+
+  dom.legendModal.addEventListener('click', (event) => {
+    if (event.target === dom.legendModal) {
+      dom.legendModal.classList.add('hidden')
     }
   })
 
