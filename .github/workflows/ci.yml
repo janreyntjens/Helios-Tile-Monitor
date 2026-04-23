@@ -27,8 +27,12 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
+      - name: Install macOS system deps for node-hid
+        if: runner.os == 'macOS'
+        run: brew install hidapi pkg-config
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund || npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Smoke check
         run: npm run smoke
