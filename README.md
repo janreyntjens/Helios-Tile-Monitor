@@ -1,5 +1,99 @@
 # HELIOS MONITOR
 
+Local monitoring software for MVR Helios processors with:
+
+- Network scanner for Helios processors
+- Drag-and-drop assignment to `MAIN` and `BACKUP`
+- 4 monitor rows with color status
+- Button actions for `Go Main` and `Go Backup`
+- Persistent configuration (no reprogramming needed after restart)
+- Optional Stream Deck integration
+
+## Requirements
+
+- Node.js 18+ (Node 20+ recommended)
+- Windows or macOS
+
+## Getting started
+
+```bash
+npm install
+npm start
+```
+
+Then open:
+
+- http://localhost:3111
+
+Quick launchers:
+
+- Windows: `start-helios-monitor.bat`
+- macOS: `start-helios-monitor.command`
+
+## How the 4 rows work
+
+1. Row 1: shows MAIN processor name/IP and is clickable for `Go Main`
+2. Row 2: shows MAIN tiles (`found / expected`) and blinks red when found < expected
+3. Row 3: shows BACKUP tiles (`found / expected`) and blinks red when found < expected
+4. Row 4: shows BACKUP processor name/IP and is clickable for `Go Backup` (also blinks red when backup tiles are missing)
+
+## Status colors
+
+- Green — ACTIVE: processor active and tile count matches expected
+- Orange — STANDBY / ONLINE: reachable, in standby role or tiles above expected
+- Red — MIXED: redundancy state mixed/unhealthy
+- Red blinking — TILES MISSING: active tile count below expected (critical)
+- Gray — UNASSIGNED: no processor assigned to this slot
+
+A `Legend` button in the board header shows the same overview in-app.
+
+## Scanner
+
+- Fast scan automatically scans the relevant local IPv4 ranges of all active network adapters
+- A progress bar is shown while scanning
+
+## Stream Deck
+
+- Click `Scan Decks` to detect connected Stream Deck devices
+- Drag any board button onto a Stream Deck key to map it
+- Right-click a Stream Deck key to remove the mapping
+- Click `Disconnect` to release the device back to the OS (e.g. for use with Companion)
+
+## Command configuration
+
+By default the app uses:
+
+- `PATCH /api/v1/public` with `dev.display.redundancy.state = "main"`
+- `PATCH /api/v1/public` with `dev.display.redundancy.state = "backup"`
+
+If your setup needs different commands, this can be extended in the backend with a custom body/path (base is already in `src/heliosClient.js`).
+
+## Data storage
+
+Configuration and assignments are stored locally in:
+
+- `data/state.json`
+
+## Releases
+
+A release tag triggers GitHub Actions to build two release assets:
+
+- Windows zip
+- macOS zip
+
+To create a new release:
+
+```bash
+git tag v1.0.0
+git push origin main
+git push origin v1.0.0
+```
+
+Note: these are platform-specific distribution zips of the source plus launchers. They are not standalone native app bundles, because the app uses `@elgato-stream-deck/node` and `node-hid`, which contain native platform-dependent code.
+
+A smoke check (`npm run smoke`) is run on Windows and macOS via GitHub Actions CI for every push to `main`.
+# HELIOS MONITOR
+
 Lokale monitorsoftware voor MVR Helios processors met:
 
 - Netwerkscanner voor Helios processors
