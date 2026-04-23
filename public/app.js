@@ -820,6 +820,7 @@ function loadDemoData() {
   const cols = 3
   state = {
     ...state,
+    demoMode: true,
     processors: demoProcessors,
     config: {
       ...state.config,
@@ -841,10 +842,11 @@ function loadDemoData() {
   createBoard()
   renderProcessors()
   paintBoardButtons()
-  setStatus('Demo data geladen — dit zijn nep-processors.')
+  setStatus('Demo data geladen — klik nogmaals om uit te schakelen.')
 }
 
 async function refreshState() {
+  if (state.demoMode) return
   const data = await api('/api/state')
   state = {
     processors: Array.isArray(data.processors) ? data.processors : [],
@@ -1004,8 +1006,14 @@ function wireEvents() {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextCollapsed))
   })
 
-  dom.demoBtn.addEventListener('click', () => {
-    loadDemoData()
+  dom.demoBtn.addEventListener('click', async () => {
+    if (state.demoMode) {
+      state.demoMode = false
+      setStatus('Demo modus uit. Live data wordt geladen...')
+      await refreshState()
+    } else {
+      loadDemoData()
+    }
   })
 
   dom.scanDecksBtn.addEventListener('click', async () => {
