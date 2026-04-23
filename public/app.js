@@ -258,7 +258,7 @@ function renderProcessors() {
 
     card.innerHTML = `
       <strong>${esc(processor.description)}</strong>
-      <div class="meta">IP: ${esc(processor.ip)} | tiles: ${processor.tilesCount}</div>
+      <div class="meta">IP: <a href="http://${esc(processor.ip)}" target="_blank" rel="noopener noreferrer" class="ip-link" title="Open processor web interface">${esc(processor.ip)}</a> | tiles: ${processor.tilesCount}</div>
       <div class="meta">role: ${esc(processor.redundancy?.role || '-')}</div>
     `
 

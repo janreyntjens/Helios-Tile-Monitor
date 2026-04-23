@@ -409,6 +409,16 @@ label {
   color: #9ca6c1;
 }
 
+.processor-card .ip-link {
+  color: #7ba7f7;
+  text-decoration: none;
+}
+
+.processor-card .ip-link:hover {
+  text-decoration: underline;
+  color: #a8c8ff;
+}
+
 .board-pane {
   border: 1px solid var(--line);
   border-radius: 14px;
