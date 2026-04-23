@@ -9,6 +9,81 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+
+  build-release:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset_name: helios-monitor-windows-${{ github.ref_name }}.zip
+            archive_command: powershell -Command "Compress-Archive -Path package.json,package-lock.json,README.md,start-helios-monitor.bat,start-helios-monitor.command,public,src,api_docs,.github -DestinationPath $env:RUNNER_TEMP\\helios-monitor-windows-${{ github.ref_name }}.zip"
+          - os: macos-latest
+            asset_name: helios-monitor-macos-${{ github.ref_name }}.zip
+            archive_command: zip -r "$RUNNER_TEMP/helios-monitor-macos-${{ github.ref_name }}.zip" package.json package-lock.json README.md start-helios-monitor.bat start-helios-monitor.command public src api_docs .github
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install macOS system deps for node-hid
+        if: runner.os == 'macOS'
+        run: brew install hidapi pkg-config
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund || npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Smoke check
+        run: npm run smoke
+
+      - name: Create archive
+        run: ${{ matrix.archive_command }}
+
+      - name: List temp dir (debug, macOS)
+        if: runner.os == 'macOS'
+        run: ls -la "$RUNNER_TEMP"
+
+      - name: List temp dir (debug, Windows)
+        if: runner.os == 'Windows'
+        run: dir $env:RUNNER_TEMP
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: ${{ runner.temp }}/${{ matrix.asset_name }}
+          fail_on_unmatched_files: true
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
   build-release:
     strategy:
       fail-fast: false
