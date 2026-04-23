@@ -10,12 +10,7 @@ on:
 
 jobs:
   smoke:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-        node: [20]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -24,15 +19,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 20
           cache: npm
 
-      - name: Install macOS system deps for node-hid
-        if: runner.os == 'macOS'
-        run: brew install hidapi pkg-config
-
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund || npm ci --ignore-scripts --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Smoke check
         run: npm run smoke

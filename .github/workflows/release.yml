@@ -9,6 +9,46 @@ permissions:
   contents: write
 
 jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Smoke check
+        run: npm run smoke
+
+      - name: Create archive
+        run: powershell -Command "Compress-Archive -Path package.json,package-lock.json,README.md,start-helios-monitor.bat,public,src,api_docs -DestinationPath $env:RUNNER_TEMP\\helios-monitor-windows-${{ github.ref_name }}.zip"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ${{ runner.temp }}/helios-monitor-windows-${{ github.ref_name }}.zip
+          fail_on_unmatched_files: true
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
