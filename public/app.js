@@ -4,7 +4,6 @@ const dom = {
   scanProgress: document.getElementById('scanProgress'),
   scanProgressFill: document.getElementById('scanProgressFill'),
   scanProgressText: document.getElementById('scanProgressText'),
-  demoBtn: document.getElementById('demoBtn'),
   scanDecksBtn: document.getElementById('scanDecksBtn'),
   disconnectDeckBtn: document.getElementById('disconnectDeckBtn'),
   deckSelect: document.getElementById('deckSelect'),
@@ -799,54 +798,7 @@ function createBoard() {
   }
 }
 
-function loadDemoData() {
-  const makeProcessor = (id, name, ip, role, status, tiles) => ({
-    id,
-    processorKey: id,
-    description: name,
-    ip,
-    tilesCount: tiles,
-    redundancy: { role, status, state: status, mode: 'auto', info: '' }
-  })
-
-  const demoProcessors = [
-    makeProcessor('p1', 'HELIOS-MAIN-01',   '192.168.1.101', 'active',  'active',  24),
-    makeProcessor('p2', 'HELIOS-BACKUP-01', '192.168.1.102', 'standby', 'standby', 24),
-    makeProcessor('p3', 'HELIOS-MAIN-02',   '192.168.1.103', 'active',  'active',  12),
-    makeProcessor('p4', 'HELIOS-BACKUP-02', '192.168.1.104', 'standby', 'mixed',   10),
-    makeProcessor('p5', 'HELIOS-MAIN-03',   '192.168.1.105', 'active',  'active',   0),
-  ]
-
-  const cols = 3
-  state = {
-    ...state,
-    demoMode: true,
-    processors: demoProcessors,
-    config: {
-      ...state.config,
-      columnCount: cols,
-      expectedTilesBySlot: {
-        'main:0': 24, 'backup:0': 24,
-        'main:1': 12, 'backup:1': 12,
-        'main:2':  8, 'backup:2':  0
-      }
-    },
-    slots: [
-      { main: demoProcessors[0], backup: demoProcessors[1] },
-      { main: demoProcessors[2], backup: demoProcessors[3] },
-      { main: demoProcessors[4], backup: null }
-    ]
-  }
-
-  updateBoardHeader()
-  createBoard()
-  renderProcessors()
-  paintBoardButtons()
-  setStatus('Demo data geladen — klik nogmaals om uit te schakelen.')
-}
-
 async function refreshState() {
-  if (state.demoMode) return
   const data = await api('/api/state')
   state = {
     processors: Array.isArray(data.processors) ? data.processors : [],
@@ -1004,16 +956,6 @@ function wireEvents() {
     const nextCollapsed = !dom.appShell.classList.contains('sidebar-collapsed')
     applySidebarMode(nextCollapsed)
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextCollapsed))
-  })
-
-  dom.demoBtn.addEventListener('click', async () => {
-    if (state.demoMode) {
-      state.demoMode = false
-      setStatus('Demo modus uit. Live data wordt geladen...')
-      await refreshState()
-    } else {
-      loadDemoData()
-    }
   })
 
   dom.scanDecksBtn.addEventListener('click', async () => {

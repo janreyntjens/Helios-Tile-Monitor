@@ -419,23 +419,6 @@ label {
   color: #a8c8ff;
 }
 
-.demo-btn {
-  margin-top: 0.6rem;
-  width: 100%;
-  background: transparent;
-  border: 1px dashed #3a4468;
-  color: #6b7899;
-  font-size: 0.75rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.demo-btn:hover {
-  border-color: #7ba7f7;
-  color: #a8c8ff;
-}
-
 .board-pane {
   border: 1px solid var(--line);
   border-radius: 14px;
