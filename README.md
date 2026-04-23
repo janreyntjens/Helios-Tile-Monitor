@@ -2,7 +2,7 @@
 
 Local monitoring software for MVR Helios processors with:
 
-- Network scanner for Helios processors
+- Network scanner for Megapixel Helios processors
 - Drag-and-drop assignment to `MAIN` and `BACKUP`
 - 4 monitor rows with color status
 - Button actions for `Go Main` and `Go Backup`
