@@ -45,7 +45,16 @@ jobs:
       - name: Create archive
         run: ${{ matrix.archive_command }}
 
+      - name: List temp dir (debug)
+        if: runner.os == 'macOS'
+        run: ls -la "$RUNNER_TEMP"
+
+      - name: List temp dir (debug)
+        if: runner.os == 'Windows'
+        run: dir $env:RUNNER_TEMP
+
       - name: Publish release asset
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ runner.temp }}/${{ matrix.asset_name }}
+          fail_on_unmatched_files: true
