@@ -1,9 +1,69 @@
 const path = require('path')
-const { spawn } = require('child_process')
+const fs = require('fs')
+const os = require('os')
+const { spawn, spawnSync } = require('child_process')
 const express = require('express')
 const { scanNetwork, getPublicData, executeAction } = require('./heliosClient')
 const { loadState, saveState, defaultState } = require('./store')
 const { StreamDeckManager } = require('./streamdeckManager')
+
+// Set the Windows console window icon + title so the taskbar shows our logo
+// instead of the generic conhost (cmd) icon. Only runs on Windows.
+function applyWindowsConsoleIcon() {
+  if (process.platform !== 'win32') return
+  try {
+    // Try to find a logo.ico we can hand to PowerShell. When packaged with
+    // pkg the file lives inside the snapshot fs, so copy it out to %TEMP%.
+    const candidates = [
+      path.join(process.pkg ? path.dirname(process.execPath) : process.cwd(), 'logo.ico'),
+      path.join(__dirname, '..', 'logo.ico')
+    ]
+    let iconSrc = candidates.find(p => { try { return fs.existsSync(p) } catch { return false } })
+    if (!iconSrc) return
+    let iconPath = iconSrc
+    if (process.pkg) {
+      const tmp = path.join(os.tmpdir(), 'helios-monitor.ico')
+      try { fs.copyFileSync(iconSrc, tmp); iconPath = tmp } catch { /* fall back */ }
+    }
+    const pid = process.pid
+    const ps = [
+      '$src = @"',
+      'using System;',
+      'using System.Runtime.InteropServices;',
+      'public class WinIcon {',
+      '  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);',
+      '  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();',
+      '  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool AttachConsole(uint dwProcessId);',
+      '  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool FreeConsole();',
+      '  [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern IntPtr LoadImage(IntPtr hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);',
+      '}',
+      '"@',
+      'Add-Type -TypeDefinition $src -Language CSharp',
+      `$icoSmall = [WinIcon]::LoadImage([IntPtr]::Zero, '${iconPath.replace(/\\/g, '\\\\')}', 1, 16, 16, 0x00000010)`,
+      `$icoBig   = [WinIcon]::LoadImage([IntPtr]::Zero, '${iconPath.replace(/\\/g, '\\\\')}', 1, 32, 32, 0x00000010)`,
+      '[void][WinIcon]::FreeConsole()',
+      '[void][WinIcon]::AttachConsole(' + pid + ')',
+      '$hwnd = [WinIcon]::GetConsoleWindow()',
+      'if ($hwnd -ne [IntPtr]::Zero) {',
+      '  [void][WinIcon]::SendMessage($hwnd, 0x80, [IntPtr]0, $icoSmall)',
+      '  [void][WinIcon]::SendMessage($hwnd, 0x80, [IntPtr]1, $icoBig)',
+      '}',
+      '[void][WinIcon]::FreeConsole()'
+    ].join('; ')
+    spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], {
+      windowsHide: true,
+      timeout: 5000
+    })
+  } catch {
+    // Best-effort only.
+  }
+}
+
+applyWindowsConsoleIcon()
+
+if (process.platform === 'win32') {
+  try { process.title = 'Helios Monitor' } catch { /* ignore */ }
+}
 
 const app = express()
 const port = process.env.PORT || 3111
