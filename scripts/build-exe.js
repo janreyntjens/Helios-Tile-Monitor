@@ -76,10 +76,12 @@ async function ensureBaseBinaryWithIcon() {
     'file-version': pkg.version
   })
 
-  // pkg prefers "fetched-*" over "built-*" when both are present, so remove
-  // the original to force pkg to use our patched copy.
-  if (builtPath !== bin && fs.existsSync(bin)) {
-    try { fs.unlinkSync(bin) ; console.log(`[build-exe] removed ${path.basename(bin)} so pkg uses ${builtName}`) } catch { /* ignore */ }
+  // pkg always reads "fetched-*" (see producer.js), so overwrite it with our
+  // patched copy. pkg only verifies the hash when downloading; once present,
+  // it trusts the file contents.
+  if (builtPath !== bin) {
+    fs.copyFileSync(builtPath, bin)
+    console.log(`[build-exe] overwrote ${path.basename(bin)} with patched binary`)
   }
 }
 
