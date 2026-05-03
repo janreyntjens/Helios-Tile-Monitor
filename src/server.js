@@ -1,8 +1,24 @@
 const path = require('path')
+const fs = require('fs')
+const { spawn } = require('child_process')
 const express = require('express')
 const { scanNetwork, getPublicData, executeAction } = require('./heliosClient')
 const { loadState, saveState, defaultState } = require('./store')
 const { StreamDeckManager } = require('./streamdeckManager')
+
+// When running as a packaged exe (no console window), redirect stdout/stderr
+// to a log file alongside the executable so we don't crash on EPIPE writes.
+if (process.pkg) {
+  try {
+    const logPath = path.join(path.dirname(process.execPath), 'helios-monitor.log')
+    const stream = fs.createWriteStream(logPath, { flags: 'a' })
+    const write = stream.write.bind(stream)
+    process.stdout.write = write
+    process.stderr.write = write
+  } catch {
+    // ignore log redirect failures
+  }
+}
 
 const app = express()
 const port = process.env.PORT || 3111
@@ -678,5 +694,19 @@ streamDeckManager.scanAndConnect().catch(() => {
 })
 
 app.listen(port, () => {
-  console.log(`Helios monitor server gestart op http://localhost:${port}`)
+  const url = `http://localhost:${port}`
+  console.log(`Helios monitor server gestart op ${url}`)
+  if (process.env.HELIOS_NO_BROWSER === '1') return
+  // Auto-open the default browser (Windows: 'start', macOS: 'open', Linux: 'xdg-open').
+  try {
+    if (process.platform === 'win32') {
+      spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref()
+    } else if (process.platform === 'darwin') {
+      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref()
+    } else {
+      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref()
+    }
+  } catch (err) {
+    console.warn('[browser] could not auto-open:', err && err.message)
+  }
 })
