@@ -27,12 +27,27 @@ jobs:
       - name: Smoke check
         run: npm run smoke
 
-      - name: Create archive
+      - name: Build single-file exe
+        run: npm run build:exe
+
+      - name: Create source archive
         shell: pwsh
         run: |
           $zip = "$env:RUNNER_TEMP\helios-monitor-windows-${{ github.ref_name }}.zip"
-          Compress-Archive -Path package.json,package-lock.json,README.md,start-helios-monitor.bat,public,src,api_docs -DestinationPath $zip
+          Compress-Archive -Path package.json,package-lock.json,README.md,start-helios-monitor.bat,public,src,api_docs,logo.ico -DestinationPath $zip
           Get-ChildItem $env:RUNNER_TEMP
+          Get-ChildItem dist
+
+      - name: Stage exe with version-named filename
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $stripped = $version.TrimStart('v')
+          $src = "dist/helios-monitor-$stripped.exe"
+          $dst = "$env:RUNNER_TEMP/helios-monitor-windows-$version.exe"
+          if (-not (Test-Path $src)) { throw "exe not found at $src" }
+          Copy-Item $src $dst -Force
+          Get-Item $dst | Format-List Name,Length
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -40,5 +55,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: ${{ runner.temp }}/helios-monitor-windows-${{ github.ref_name }}.zip
+          files: |
+            ${{ runner.temp }}/helios-monitor-windows-${{ github.ref_name }}.zip
+            ${{ runner.temp }}/helios-monitor-windows-${{ github.ref_name }}.exe
           fail_on_unmatched_files: true

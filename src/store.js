@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const dataDir = path.join(process.cwd(), 'data')
+const dataDir = path.join(process.pkg ? path.dirname(process.execPath) : process.cwd(), 'data')
 const dataPath = path.join(dataDir, 'state.json')
 const DEFAULT_COLUMNS = 8
 const MIN_COLUMNS = 1

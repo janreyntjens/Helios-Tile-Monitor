@@ -6,9 +6,10 @@ const { StreamDeckManager } = require('./streamdeckManager')
 
 const app = express()
 const port = process.env.PORT || 3111
+const publicDir = path.join(__dirname, '..', 'public')
 
 app.use(express.json({ limit: '1mb' }))
-app.use(express.static(path.join(process.cwd(), 'public')))
+app.use(express.static(publicDir))
 
 let state = loadState()
 let processors = new Map()

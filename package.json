@@ -3,13 +3,34 @@
   "version": "1.0.1",
   "description": "Helios monitor met scanner, drag-and-drop mapping en 4-rijen controle",
   "main": "src/server.js",
+  "bin": "src/server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "smoke": "node -e \"require('./src/heliosClient'); require('./src/store'); require('./src/streamdeckManager'); console.log('smoke ok')\""
+    "smoke": "node -e \"require('./src/heliosClient'); require('./src/store'); require('./src/streamdeckManager'); console.log('smoke ok')\"",
+    "build:exe": "node scripts/build-exe.js"
+  },
+  "pkg": {
+    "scripts": [
+      "src/**/*.js"
+    ],
+    "assets": [
+      "public/**/*",
+      "node_modules/node-hid/prebuilds/HID-win32-x64/**/*",
+      "node_modules/node-hid/package.json",
+      "node_modules/@elgato-stream-deck/**/package.json",
+      "logo.ico"
+    ],
+    "targets": [
+      "node20-win-x64"
+    ]
   },
   "dependencies": {
     "@elgato-stream-deck/node": "^7.0.0",
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.19.0",
+    "rcedit": "^5.0.2"
   }
 }
