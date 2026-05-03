@@ -96,47 +96,7 @@ async function main() {
     throw new Error(`pkg did not produce ${outPath}`)
   }
 
-  patchPeSubsystemToGui(outPath)
-
   console.log(`[build-exe] done -> ${outPath}`)
-}
-
-/**
- * Patches the PE optional-header Subsystem field from "Windows CUI" (3) to
- * "Windows GUI" (2). This removes the console window when launching the exe,
- * so Windows shows the embedded application icon in the taskbar instead of
- * the conhost (cmd) icon.
- */
-function patchPeSubsystemToGui(exePath) {
-  const fd = fs.openSync(exePath, 'r+')
-  try {
-    const dosHeader = Buffer.alloc(0x40)
-    fs.readSync(fd, dosHeader, 0, dosHeader.length, 0)
-    if (dosHeader.readUInt16LE(0) !== 0x5A4D) {
-      throw new Error('not a PE file (missing MZ)')
-    }
-    const peOffset = dosHeader.readUInt32LE(0x3C)
-    const sig = Buffer.alloc(4)
-    fs.readSync(fd, sig, 0, 4, peOffset)
-    if (sig.readUInt32LE(0) !== 0x00004550) {
-      throw new Error('PE signature not found')
-    }
-    // Subsystem is a UInt16 located at PE + 0x5C (24-byte COFF header + offset
-    // 0x44 inside the optional header for both PE32 and PE32+).
-    const subsystemOffset = peOffset + 0x5C
-    const cur = Buffer.alloc(2)
-    fs.readSync(fd, cur, 0, 2, subsystemOffset)
-    const before = cur.readUInt16LE(0)
-    if (before === 2) {
-      console.log('[build-exe] subsystem already GUI (2)')
-      return
-    }
-    const next = Buffer.from([0x02, 0x00])
-    fs.writeSync(fd, next, 0, 2, subsystemOffset)
-    console.log(`[build-exe] patched PE subsystem ${before} -> 2 (GUI)`)
-  } finally {
-    fs.closeSync(fd)
-  }
 }
 
 main().catch(err => {
