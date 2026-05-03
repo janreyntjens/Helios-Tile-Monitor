@@ -1,6 +1,6 @@
 {
   "name": "helios-monitor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Helios monitor met scanner, drag-and-drop mapping en 4-rijen controle",
   "main": "src/server.js",
   "type": "commonjs",

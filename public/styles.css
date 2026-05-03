@@ -103,6 +103,13 @@ h2 {
   min-width: 0;
 }
 
+.sidebar-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  image-rendering: -webkit-optimize-contrast;
+}
+
 .sidebar-head #toggleSidebarBtn {
   flex-shrink: 0;
 }
