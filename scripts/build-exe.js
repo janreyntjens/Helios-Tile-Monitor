@@ -23,8 +23,11 @@ function findFetchedBinary() {
     const dir = path.join(cacheRoot, v)
     if (!fs.statSync(dir).isDirectory()) continue
     const files = fs.readdirSync(dir)
-    const match = files.find(f => (f.startsWith('fetched-') || f.startsWith('built-')) && f.endsWith('-win-x64'))
-    if (match) return path.join(dir, match)
+    // Prefer the original fetched-* file so we always have a clean source to copy from.
+    const fetched = files.find(f => f.startsWith('fetched-') && f.endsWith('-win-x64'))
+    if (fetched) return path.join(dir, fetched)
+    const built = files.find(f => f.startsWith('built-') && f.endsWith('-win-x64'))
+    if (built) return path.join(dir, built)
   }
   return null
 }
@@ -42,35 +45,37 @@ async function ensureBaseBinaryWithIcon() {
   }
   if (!bin) throw new Error('could not locate fetched Node binary in pkg cache')
 
-  if (fs.existsSync(iconPath)) {
-    console.log(`[build-exe] embedding icon into base binary: ${bin}`)
-    await rcedit(bin, {
-      icon: iconPath,
-      'version-string': {
-        ProductName: 'Helios Monitor',
-        FileDescription: 'Helios Monitor',
-        CompanyName: 'Jan Reyntjens',
-        LegalCopyright: 'Jan Reyntjens',
-        OriginalFilename: outName,
-        InternalName: 'helios-monitor'
-      },
-      'product-version': pkg.version,
-      'file-version': pkg.version
-    })
-    // pkg verifies hash for "fetched-*" binaries and re-downloads if changed.
-    // Rename to "built-*" so pkg trusts our modified copy.
-    const dir = path.dirname(bin)
-    const base = path.basename(bin)
-    if (base.startsWith('fetched-')) {
-      const builtName = 'built-' + base.slice('fetched-'.length)
-      const builtPath = path.join(dir, builtName)
-      if (fs.existsSync(builtPath)) fs.unlinkSync(builtPath)
-      fs.renameSync(bin, builtPath)
-      console.log(`[build-exe] renamed base binary -> ${builtName}`)
-    }
-  } else {
+  if (!fs.existsSync(iconPath)) {
     console.warn('[build-exe] logo.ico not found, skipping icon embed')
+    return
   }
+
+  // Copy fetched-* -> built-* (pkg trusts built-* without hash verification).
+  const dir = path.dirname(bin)
+  const base = path.basename(bin)
+  const builtName = base.startsWith('fetched-')
+    ? 'built-' + base.slice('fetched-'.length)
+    : base
+  const builtPath = path.join(dir, builtName)
+  if (builtPath !== bin) {
+    fs.copyFileSync(bin, builtPath)
+    console.log(`[build-exe] copied base binary -> ${builtName}`)
+  }
+
+  console.log(`[build-exe] embedding icon into ${builtPath}`)
+  await rcedit(builtPath, {
+    icon: iconPath,
+    'version-string': {
+      ProductName: 'Helios Monitor',
+      FileDescription: 'Helios Monitor',
+      CompanyName: 'Jan Reyntjens',
+      LegalCopyright: 'Jan Reyntjens',
+      OriginalFilename: outName,
+      InternalName: 'helios-monitor'
+    },
+    'product-version': pkg.version,
+    'file-version': pkg.version
+  })
 }
 
 async function main() {
