@@ -5,6 +5,7 @@ const dom = {
   scanProgressFill: document.getElementById('scanProgressFill'),
   scanProgressText: document.getElementById('scanProgressText'),
   scanDecksBtn: document.getElementById('scanDecksBtn'),
+  connectDeckBtn: document.getElementById('connectDeckBtn'),
   disconnectDeckBtn: document.getElementById('disconnectDeckBtn'),
   deckSelect: document.getElementById('deckSelect'),
   deckKeyMap: document.getElementById('deckKeyMap'),
@@ -55,7 +56,8 @@ let state = {
   slots: [],
   streamDeck: {
     devices: [],
-    mappings: []
+    mappings: [],
+    companionKeys: []
   }
 }
 
@@ -279,23 +281,49 @@ function showDeckKeyContextMenu(event, deckId, keyIndex, mapping) {
   contextMenu.innerHTML = ''
   contextMenu.classList.remove('hidden')
 
-  const unmapBtn = document.createElement('button')
-  unmapBtn.type = 'button'
-  unmapBtn.textContent = 'Unmap'
-  unmapBtn.addEventListener('click', async () => {
+  const isCompanion = (state.streamDeck?.companionKeys || []).some(
+    (k) => k.deckId === deckId && Number(k.keyIndex) === Number(keyIndex)
+  )
+
+  if (mapping) {
+    const unmapBtn = document.createElement('button')
+    unmapBtn.type = 'button'
+    unmapBtn.textContent = 'Unmap'
+    unmapBtn.addEventListener('click', async () => {
+      contextMenu.classList.add('hidden')
+      try {
+        await api('/api/streamdecks/unmap', {
+          method: 'POST',
+          body: JSON.stringify({ deckId, keyIndex })
+        })
+        setStatus('Mapping removed.')
+        await refreshState()
+      } catch (error) {
+        setStatus(error.message, true)
+      }
+    })
+    contextMenu.appendChild(unmapBtn)
+  }
+
+  const companionBtn = document.createElement('button')
+  companionBtn.type = 'button'
+  companionBtn.textContent = isCompanion ? 'Unmark Companion key' : 'Mark as Companion key'
+  companionBtn.addEventListener('click', async () => {
     contextMenu.classList.add('hidden')
     try {
-      await api('/api/streamdecks/unmap', {
+      await api('/api/streamdecks/companion', {
         method: 'POST',
-        body: JSON.stringify({ deckId, keyIndex })
+        body: JSON.stringify({ deckId, keyIndex, mark: !isCompanion })
       })
-      setStatus('Mapping removed.')
+      setStatus(isCompanion
+        ? 'Key returned to Helios.'
+        : 'Key handed over to Companion (Helios will not draw or react).')
       await refreshState()
     } catch (error) {
       setStatus(error.message, true)
     }
   })
-  contextMenu.appendChild(unmapBtn)
+  contextMenu.appendChild(companionBtn)
 
   contextMenu.style.left = `${event.clientX}px`
   contextMenu.style.top = `${event.clientY}px`
@@ -346,11 +374,13 @@ function renderStreamDeckPanel() {
   const devices = state.streamDeck?.devices || []
   const mappings = state.streamDeck?.mappings || []
 
+  const previousSelection = dom.deckSelect.value
   dom.deckSelect.innerHTML = ''
   for (const device of devices) {
     const option = document.createElement('option')
     option.value = device.id
-    option.textContent = `${device.model} (${device.id})`
+    const status = device.connected ? '● connected' : 'disconnected'
+    option.textContent = `${device.model} (${device.id}) — ${status}`
     dom.deckSelect.appendChild(option)
   }
 
@@ -361,7 +391,12 @@ function renderStreamDeckPanel() {
     dom.deckSelect.appendChild(option)
   }
 
-  if (devices.length > 0 && !Array.from(dom.deckSelect.options).some((o) => o.value === dom.deckSelect.value)) {
+  // Preserve the user's selection across re-renders. Only fall back to the
+  // first device when the previous selection no longer exists.
+  const optionValues = Array.from(dom.deckSelect.options).map((o) => o.value)
+  if (previousSelection && optionValues.includes(previousSelection)) {
+    dom.deckSelect.value = previousSelection
+  } else if (devices.length > 0) {
     dom.deckSelect.value = devices[0].id
   }
 
@@ -421,6 +456,7 @@ function renderDeckKeyMap() {
   const deckId = dom.deckSelect.value
   const devices = state.streamDeck?.devices || []
   const mappings = state.streamDeck?.mappings || []
+  const companionKeys = state.streamDeck?.companionKeys || []
   const selectedDeck = devices.find((d) => d.id === deckId)
 
   dom.deckKeyMap.innerHTML = ''
@@ -447,12 +483,17 @@ function renderDeckKeyMap() {
     cell.draggable = true
 
     const activeMapping = mappings.find((m) => m.deckId === deckId && Number(m.keyIndex) === index)
+    const isCompanion = companionKeys.some((k) => k.deckId === deckId && Number(k.keyIndex) === index)
     const stateKey = `${deckId}:${index}`
-    const currentState = activeMapping ? `${Number(activeMapping.row)}:${Number(activeMapping.col)}` : ''
+    const currentState = activeMapping ? `${Number(activeMapping.row)}:${Number(activeMapping.col)}` : (isCompanion ? 'companion' : '')
     const previousState = previousDeckKeyState.get(stateKey) || ''
 
     if (activeMapping) {
       cell.classList.add('mapped')
+    }
+    if (isCompanion) {
+      cell.classList.add('companion')
+      cell.draggable = false
     }
 
     if (!previousState && currentState) {
@@ -463,9 +504,11 @@ function renderDeckKeyMap() {
       cell.classList.add('remap-pulse')
     }
 
-    const targetLabel = activeMapping
-      ? getGridButtonLabel(Number(activeMapping.row), Number(activeMapping.col))
-      : 'Drop a board button here'
+    const targetLabel = isCompanion
+      ? 'Companion (external)'
+      : (activeMapping
+        ? getGridButtonLabel(Number(activeMapping.row), Number(activeMapping.col))
+        : 'Drop a board button here')
 
     cell.innerHTML = `<span class="deck-key-index">K${index + 1}</span><span class="deck-key-target">${esc(targetLabel)}</span>`
 
@@ -493,6 +536,11 @@ function renderDeckKeyMap() {
       cell.classList.remove('drag-over')
       const gridPayload = getDragPayload(event, DND_TYPES.gridButton)
       if (!gridPayload) return
+      if (isCompanion) {
+        event.preventDefault()
+        setStatus('Key is owned by Companion. Unmark Companion first.', true)
+        return
+      }
 
       event.preventDefault()
       try {
@@ -504,7 +552,9 @@ function renderDeckKeyMap() {
 
     cell.addEventListener('contextmenu', (event) => {
       event.preventDefault()
-      if (!activeMapping) {
+      if (!activeMapping && !isCompanion) {
+        // still allow marking unused key as companion
+        showDeckKeyContextMenu(event, deckId, index, null)
         return
       }
       showDeckKeyContextMenu(event, deckId, index, activeMapping)
@@ -807,7 +857,7 @@ async function refreshState() {
     processors: Array.isArray(data.processors) ? data.processors : [],
     config: data.config || { columnCount: DEFAULT_COLUMNS, expectedTilesBySlot: {}, expectedTilesByProcessor: {}, streamDeckMappings: [] },
     slots: Array.isArray(data.slots) ? data.slots : [],
-    streamDeck: data.streamDeck || { devices: [], mappings: [] }
+    streamDeck: data.streamDeck || { devices: [], mappings: [], companionKeys: [] }
   }
 
   updateBoardHeader()
@@ -890,7 +940,23 @@ async function clearAll() {
 
 async function scanStreamDecks() {
   await api('/api/streamdecks/scan', { method: 'POST' })
-  setStatus('Stream Deck scan complete.')
+  setStatus('Stream Deck scan complete. Select a deck and press Connect.')
+  await refreshState()
+}
+
+async function connectStreamDeck() {
+  const deckId = dom.deckSelect.value
+  if (!deckId) {
+    setStatus('No Stream Deck selected.', true)
+    return
+  }
+
+  await api('/api/streamdecks/connect', {
+    method: 'POST',
+    body: JSON.stringify({ deckId })
+  })
+
+  setStatus(`Stream Deck ${deckId} connected.`)
   await refreshState()
 }
 
@@ -978,6 +1044,14 @@ function wireEvents() {
   dom.scanDecksBtn.addEventListener('click', async () => {
     try {
       await scanStreamDecks()
+    } catch (error) {
+      setStatus(error.message, true)
+    }
+  })
+
+  dom.connectDeckBtn.addEventListener('click', async () => {
+    try {
+      await connectStreamDeck()
     } catch (error) {
       setStatus(error.message, true)
     }

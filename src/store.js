@@ -19,6 +19,7 @@ const defaultState = {
     expectedTilesBySlot: {},
     expectedTilesByProcessor: {},
     streamDeckMappings: [],
+    companionKeys: [],
     goMainAction: {
       type: 'patch-model',
       path: '/api/v1/public',

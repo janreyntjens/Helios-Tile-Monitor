@@ -37,6 +37,14 @@ function getStreamDeckMappings() {
   return Array.isArray(state?.config?.streamDeckMappings) ? state.config.streamDeckMappings : []
 }
 
+function getCompanionKeys() {
+  return Array.isArray(state?.config?.companionKeys) ? state.config.companionKeys : []
+}
+
+function isCompanionKey(deckId, keyIndex) {
+  return getCompanionKeys().some((k) => k.deckId === deckId && Number(k.keyIndex) === Number(keyIndex))
+}
+
 function mergeProcessorsIntoStore(items) {
   for (const item of items || []) {
     if (!item || !item.id) continue
@@ -136,6 +144,10 @@ function setRecentStreamDeckAction(action) {
 }
 
 const streamDeckManager = new StreamDeckManager(async ({ deckId, keyIndex }) => {
+  if (isCompanionKey(deckId, keyIndex)) {
+    console.log(`[StreamDeck] Key ${keyIndex} on ${deckId}: Owned by Companion, ignored`)
+    return
+  }
   const mappings = getStreamDeckMappings()
   const mapping = mappings.find((m) => m.deckId === deckId && Number(m.keyIndex) === Number(keyIndex))
   if (!mapping) {
@@ -296,7 +308,8 @@ function currentStateResponse() {
     slots,
     streamDeck: {
       devices: streamDeckManager.getDevices(),
-      mappings: getStreamDeckMappings()
+      mappings: getStreamDeckMappings(),
+      companionKeys: getCompanionKeys()
     },
     main: slots[0]?.main || null,
     backup: slots[0]?.backup || null,
@@ -310,7 +323,8 @@ function buildResetState() {
       ...defaultState.config,
       expectedTilesBySlot: {},
       expectedTilesByProcessor: {},
-      streamDeckMappings: []
+      streamDeckMappings: [],
+      companionKeys: []
     },
     assignments: {
       columns: defaultState.assignments.columns.map((column) => ({ ...column }))
@@ -482,7 +496,7 @@ app.post('/api/reset', async (_req, res) => {
   saveState(state)
 
   try {
-    await streamDeckManager.applyMappings([], getStreamDeckRenderContext())
+    await streamDeckManager.applyMappings([], getStreamDeckRenderContext(), getCompanionKeys())
     return res.json({ ok: true, state: currentStateResponse() })
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message })
@@ -518,9 +532,24 @@ app.post('/api/columns/remove', (_req, res) => {
 
 app.post('/api/streamdecks/scan', async (_req, res) => {
   try {
-    const devices = await streamDeckManager.scanAndConnect()
-    await streamDeckManager.applyMappings(getStreamDeckMappings(), getStreamDeckRenderContext())
+    const devices = await streamDeckManager.scan()
+    await streamDeckManager.applyMappings(getStreamDeckMappings(), getStreamDeckRenderContext(), getCompanionKeys())
     return res.json({ ok: true, devices, mappings: getStreamDeckMappings() })
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+app.post('/api/streamdecks/connect', async (req, res) => {
+  try {
+    const { deckId } = req.body || {}
+    if (!deckId) {
+      return res.status(400).json({ ok: false, error: 'deckId is required' })
+    }
+
+    await streamDeckManager.connectDevice(deckId)
+    await streamDeckManager.applyMappings(getStreamDeckMappings(), getStreamDeckRenderContext(), getCompanionKeys())
+    return res.json({ ok: true, devices: streamDeckManager.getDevices() })
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message })
   }
@@ -579,7 +608,7 @@ app.post('/api/streamdecks/map', async (req, res) => {
 
   state.config.streamDeckMappings = current
   saveState(state)
-  await streamDeckManager.applyMappings(current, getStreamDeckRenderContext())
+  await streamDeckManager.applyMappings(current, getStreamDeckRenderContext(), getCompanionKeys())
   return res.json({ ok: true, mappings: current })
 })
 
@@ -591,8 +620,34 @@ app.post('/api/streamdecks/unmap', async (req, res) => {
   )
   state.config.streamDeckMappings = nextMappings
   saveState(state)
-  await streamDeckManager.applyMappings(nextMappings, getStreamDeckRenderContext())
+  await streamDeckManager.applyMappings(nextMappings, getStreamDeckRenderContext(), getCompanionKeys())
   return res.json({ ok: true, mappings: nextMappings })
+})
+
+app.post('/api/streamdecks/companion', async (req, res) => {
+  const { deckId, keyIndex, mark } = req.body || {}
+  if (!deckId || typeof deckId !== 'string') {
+    return res.status(400).json({ ok: false, error: 'deckId is required' })
+  }
+  const key = Number(keyIndex)
+  if (!Number.isInteger(key) || key < 0) {
+    return res.status(400).json({ ok: false, error: 'keyIndex must be >= 0' })
+  }
+
+  const current = getCompanionKeys().filter((k) => !(k.deckId === deckId && Number(k.keyIndex) === key))
+
+  if (mark) {
+    current.push({ deckId, keyIndex: key })
+    // A companion-owned key cannot also be a Helios mapping.
+    state.config.streamDeckMappings = getStreamDeckMappings().filter(
+      (m) => !(m.deckId === deckId && Number(m.keyIndex) === key)
+    )
+  }
+
+  state.config.companionKeys = current
+  saveState(state)
+  await streamDeckManager.applyMappings(getStreamDeckMappings(), getStreamDeckRenderContext(), current)
+  return res.json({ ok: true, companionKeys: current, mappings: getStreamDeckMappings() })
 })
 
 app.post('/api/grid/press', async (req, res) => {
@@ -673,13 +728,13 @@ setInterval(() => {
 
 setInterval(() => {
   // Keep Stream Deck mappings active and support blink animation.
-  streamDeckManager.applyMappings(getStreamDeckMappings(), getStreamDeckRenderContext()).catch(() => {
+  streamDeckManager.applyMappings(getStreamDeckMappings(), getStreamDeckRenderContext(), getCompanionKeys()).catch(() => {
     // Ignore draw errors in background.
   })
 }, 450)
 
-// Initial Stream Deck scan at startup
-streamDeckManager.scanAndConnect().catch(() => {
+// Initial Stream Deck scan at startup (list only, no auto-connect)
+streamDeckManager.scan().catch(() => {
   // Ignore startup scan error
 })
 

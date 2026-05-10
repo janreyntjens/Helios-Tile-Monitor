@@ -5,6 +5,12 @@ class StreamDeckManager {
     this.openedDecks = new Map()
     this.lastAppliedSignaturesByDeck = new Map()
     this.lastMappedKeysByDeck = new Map()
+    this.previousCompanionKeysByDeck = new Map()
+    this.lastForcedRedrawByDeck = new Map()
+    // How often we re-assert ownership over our mapped keys, even if nothing
+    // visually changed. This is what stops Companion (which shares the HID
+    // device on Windows) from leaving its image on a key that Helios has claimed.
+    this.forceRedrawIntervalMs = 900
     this.available = false
     this.sdk = null
 
@@ -74,7 +80,7 @@ class StreamDeckManager {
     })
   }
 
-  async scanAndConnect() {
+  async scan() {
     if (!this.available) {
       console.log('[StreamDeck] SDK not available')
       this.devices = []
@@ -91,52 +97,9 @@ class StreamDeckManager {
       return []
     }
 
-    const seen = new Set()
-
-    for (const device of this.devices) {
-      const id = this.getDeviceId(device)
-      seen.add(id)
-
-      if (!this.openedDecks.has(id)) {
-        try {
-          console.log(`[StreamDeck] Opening device ${id}...`)
-          const deck = await this.sdk.openStreamDeck(device.path)
-
-          try {
-            if (typeof deck.setBrightness === 'function') {
-              await deck.setBrightness(100)
-              console.log(`[StreamDeck] Brightness set to 100% on ${id}`)
-            }
-          } catch (error) {
-            console.warn(`[StreamDeck] Failed to set brightness on ${id}:`, error.message)
-          }
-          
-          deck.on('down', (eventPayload) => {
-            const keyIndex = this.normalizeKeyIndex(eventPayload)
-            if (keyIndex === null) {
-              console.warn('[StreamDeck] Unsupported down payload, key press ignored')
-              return
-            }
-
-            console.log(`[StreamDeck] Key ${keyIndex} pressed on ${id}`)
-            Promise.resolve(this.onKeyDown({ deckId: id, keyIndex })).catch((err) => {
-              console.error('[StreamDeck] Callback error:', err.message)
-            })
-          })
-          
-          this.openedDecks.set(id, { deck, device })
-          this.lastAppliedSignaturesByDeck.delete(id)
-          this.lastMappedKeysByDeck.delete(id)
-          console.log(`[StreamDeck] Device ${id} opened and listening`)
-          
-          // Clear the panel to replace Elgato logo
-          this.clearDevice(deck, id)
-        } catch (error) {
-          console.error(`[StreamDeck] Failed to open device ${id}:`, error.message)
-        }
-      }
-    }
-
+    // Close any previously-opened devices that no longer appear in the scan
+    // (e.g. unplugged). Devices that are still present stay connected.
+    const seen = new Set(this.devices.map((device) => this.getDeviceId(device)))
     for (const [id, entry] of this.openedDecks.entries()) {
       if (!seen.has(id)) {
         try {
@@ -153,6 +116,66 @@ class StreamDeckManager {
 
     return this.getDevices()
   }
+
+  async connectDevice(deckId) {
+    if (!this.available) {
+      throw new Error('Stream Deck SDK not available')
+    }
+
+    if (this.openedDecks.has(deckId)) {
+      return true
+    }
+
+    const device = this.devices.find((d) => this.getDeviceId(d) === deckId)
+    if (!device) {
+      throw new Error(`Device ${deckId} not found in last scan`)
+    }
+
+    try {
+      console.log(`[StreamDeck] Opening device ${deckId}...`)
+      const deck = await this.sdk.openStreamDeck(device.path)
+
+      try {
+        if (typeof deck.setBrightness === 'function') {
+          await deck.setBrightness(100)
+          console.log(`[StreamDeck] Brightness set to 100% on ${deckId}`)
+        }
+      } catch (error) {
+        console.warn(`[StreamDeck] Failed to set brightness on ${deckId}:`, error.message)
+      }
+
+      deck.on('down', (eventPayload) => {
+        const keyIndex = this.normalizeKeyIndex(eventPayload)
+        if (keyIndex === null) {
+          console.warn('[StreamDeck] Unsupported down payload, key press ignored')
+          return
+        }
+
+        console.log(`[StreamDeck] Key ${keyIndex} pressed on ${deckId}`)
+        Promise.resolve(this.onKeyDown({ deckId, keyIndex })).catch((err) => {
+          console.error('[StreamDeck] Callback error:', err.message)
+        })
+      })
+
+      this.openedDecks.set(deckId, { deck, device })
+      this.lastAppliedSignaturesByDeck.delete(deckId)
+      this.lastMappedKeysByDeck.delete(deckId)
+      console.log(`[StreamDeck] Device ${deckId} opened and listening`)
+
+      // Do NOT clear the panel on connect: Companion may already be drawing on
+      // keys we don't own. applyMappings() will only paint our mapped keys.
+      return true
+    } catch (error) {
+      console.error(`[StreamDeck] Failed to open device ${deckId}:`, error.message)
+      throw error
+    }
+  }
+
+  // Backwards-compatible: scan only, do not auto-connect.
+  async scanAndConnect() {
+    return this.scan()
+  }
+
 
   clearDevice(deck, deckId) {
     try {
@@ -175,10 +198,17 @@ class StreamDeckManager {
     try {
       const { deck } = entry
 
-      // Show startup logo (releases the display back to firmware)
-      if (typeof deck.resetToLogo === 'function') {
-        await deck.resetToLogo()
-        console.log(`[StreamDeck] Reset to logo on ${deckId}`)
+      // Only clear the keys Helios was actually drawing on. Do NOT call
+      // resetToLogo() / clearPanel(): that would also wipe Companion's keys,
+      // which it does not automatically redraw.
+      const ourKeys = this.lastMappedKeysByDeck.get(deckId) || new Set()
+      const lcdControl = this.getFirstLcdButtonControl(deck)
+      for (const keyIndex of ourKeys) {
+        try {
+          await this.clearKey(deck, lcdControl, keyIndex)
+        } catch (error) {
+          console.error(`[StreamDeck] Failed to clear key ${keyIndex} on disconnect:`, error.message)
+        }
       }
 
       // Close the USB handle so other apps (Companion etc.) can claim it
@@ -191,6 +221,8 @@ class StreamDeckManager {
     this.openedDecks.delete(deckId)
     this.lastAppliedSignaturesByDeck.delete(deckId)
     this.lastMappedKeysByDeck.delete(deckId)
+    this.previousCompanionKeysByDeck.delete(deckId)
+    this.lastForcedRedrawByDeck.delete(deckId)
 
     return true
   }
@@ -513,12 +545,13 @@ class StreamDeckManager {
     }
   }
 
-  async applyMappings(mappings, context = {}) {
+  async applyMappings(mappings, context = {}, companionKeys = []) {
     if (!this.available) {
       return
     }
 
     const list = Array.isArray(mappings) ? mappings : []
+    const companionList = Array.isArray(companionKeys) ? companionKeys : []
 
     for (const [deckId, entry] of this.openedDecks.entries()) {
       if (!entry.deck) {
@@ -526,12 +559,24 @@ class StreamDeckManager {
       }
 
       try {
-        const mappedKeys = list.filter((m) => m.deckId === deckId)
+        const companionSet = new Set(
+          companionList
+            .filter((k) => k && k.deckId === deckId)
+            .map((k) => Number(k.keyIndex))
+        )
+        // Defense: never draw on a companion-owned key.
+        const mappedKeys = list.filter(
+          (m) => m.deckId === deckId && !companionSet.has(Number(m.keyIndex))
+        )
         const blinkOn = Math.floor(Date.now() / 450) % 2 === 0
         const lcdControl = this.getFirstLcdButtonControl(entry.deck)
 
         const previousSignatures = this.lastAppliedSignaturesByDeck.get(deckId) || new Map()
         const previousMappedKeys = this.lastMappedKeysByDeck.get(deckId) || new Set()
+        const previousCompanion = this.previousCompanionKeysByDeck.get(deckId) || new Set()
+        const lastForced = this.lastForcedRedrawByDeck.get(deckId) || 0
+        const now = Date.now()
+        const forceRedraw = (now - lastForced) >= this.forceRedrawIntervalMs
         const nextSignatures = new Map()
         const nextMappedKeys = new Set()
         const visualsByKey = new Map()
@@ -546,12 +591,27 @@ class StreamDeckManager {
           visualsByKey.set(keyIndex, visual)
         }
 
+        // Clear keys that were Helios-owned but no longer are (incl. ones now owned by Companion).
         for (const keyIndex of previousMappedKeys) {
           if (!nextMappedKeys.has(keyIndex)) {
             try {
               await this.clearKey(entry.deck, lcdControl, keyIndex)
             } catch (error) {
               console.error(`[StreamDeck] Failed to clear key ${keyIndex}:`, error.message)
+            }
+          }
+        }
+
+        // One-shot clear when a key was previously drawn by Helios and just
+        // got handed over to Companion (so any leftover Helios pixels are wiped).
+        // We deliberately do NOT clear companion keys we never owned: those may
+        // already contain valid Companion artwork.
+        for (const keyIndex of companionSet) {
+          if (previousMappedKeys.has(keyIndex) && !previousCompanion.has(keyIndex)) {
+            try {
+              await this.clearKey(entry.deck, lcdControl, keyIndex)
+            } catch (error) {
+              console.error(`[StreamDeck] Failed to clear companion key ${keyIndex}:`, error.message)
             }
           }
         }
@@ -563,7 +623,7 @@ class StreamDeckManager {
             const previousSignature = previousSignatures.get(keyIndex)
             const nextSignature = nextSignatures.get(keyIndex)
 
-            if (previousSignature === nextSignature) {
+            if (!forceRedraw && previousSignature === nextSignature) {
               continue
             }
 
@@ -581,6 +641,10 @@ class StreamDeckManager {
 
         this.lastAppliedSignaturesByDeck.set(deckId, nextSignatures)
         this.lastMappedKeysByDeck.set(deckId, nextMappedKeys)
+        this.previousCompanionKeysByDeck.set(deckId, companionSet)
+        if (forceRedraw) {
+          this.lastForcedRedrawByDeck.set(deckId, now)
+        }
       } catch (error) {
         console.error(`[StreamDeck] Error applying mappings to ${deckId}:`, error.message)
       }

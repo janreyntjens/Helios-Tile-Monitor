@@ -345,6 +345,18 @@ label {
   color: #d4ffe9;
 }
 
+.deck-key.companion {
+  border: 2px dashed #f0a040;
+  background: linear-gradient(180deg, #3a2410 0%, #1f1408 100%);
+  color: #ffd9a8;
+  cursor: not-allowed;
+}
+
+.deck-key.companion .deck-key-target {
+  color: #ffe4bf;
+  font-style: italic;
+}
+
 .deck-key.drag-over {
   border-color: #2d7cff;
   box-shadow: 0 0 0 2px rgba(45, 124, 255, 0.4) inset;
