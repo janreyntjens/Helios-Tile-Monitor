@@ -27,6 +27,7 @@ if not exist "node_modules" (
 
 start "" "http://localhost:3111"
 echo Helios Monitor wordt gestart...
+set "HELIOS_NO_BROWSER=1"
 call npm start
 
 if errorlevel 1 (

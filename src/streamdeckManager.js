@@ -7,6 +7,7 @@ class StreamDeckManager {
     this.lastMappedKeysByDeck = new Map()
     this.previousCompanionKeysByDeck = new Map()
     this.lastForcedRedrawByDeck = new Map()
+    this.pressedKeysByDeck = new Map()
     // How often we re-assert ownership over our mapped keys, even if nothing
     // visually changed. This is what stops Companion (which shares the HID
     // device on Windows) from leaving its image on a key that Helios has claimed.
@@ -151,10 +152,32 @@ class StreamDeckManager {
           return
         }
 
+        // Mark as held so applyMappings stops redrawing this key while pressed,
+        // letting Companion's pixels stay visible for the duration of the press.
+        let pressed = this.pressedKeysByDeck.get(deckId)
+        if (!pressed) {
+          pressed = new Set()
+          this.pressedKeysByDeck.set(deckId, pressed)
+        }
+        pressed.add(keyIndex)
+
         console.log(`[StreamDeck] Key ${keyIndex} pressed on ${deckId}`)
         Promise.resolve(this.onKeyDown({ deckId, keyIndex })).catch((err) => {
           console.error('[StreamDeck] Callback error:', err.message)
         })
+      })
+
+      deck.on('up', (eventPayload) => {
+        const keyIndex = this.normalizeKeyIndex(eventPayload)
+        if (keyIndex === null) return
+        const pressed = this.pressedKeysByDeck.get(deckId)
+        if (pressed) {
+          pressed.delete(keyIndex)
+        }
+        // Force the next applyMappings tick to repaint this key so Helios
+        // immediately reclaims it after release.
+        const sigs = this.lastAppliedSignaturesByDeck.get(deckId)
+        if (sigs) sigs.delete(keyIndex)
       })
 
       this.openedDecks.set(deckId, { deck, device })
@@ -223,6 +246,7 @@ class StreamDeckManager {
     this.lastMappedKeysByDeck.delete(deckId)
     this.previousCompanionKeysByDeck.delete(deckId)
     this.lastForcedRedrawByDeck.delete(deckId)
+    this.pressedKeysByDeck.delete(deckId)
 
     return true
   }
@@ -619,6 +643,12 @@ class StreamDeckManager {
         for (const mapping of mappedKeys) {
           try {
             const keyIndex = Number(mapping.keyIndex)
+            // While the user is physically holding this key down, leave it
+            // alone so any Companion image bleeding through stays visible.
+            const pressed = this.pressedKeysByDeck.get(deckId)
+            if (pressed && pressed.has(keyIndex)) {
+              continue
+            }
             const visual = visualsByKey.get(keyIndex)
             const previousSignature = previousSignatures.get(keyIndex)
             const nextSignature = nextSignatures.get(keyIndex)
